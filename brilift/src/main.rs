@@ -2,7 +2,8 @@ use argh::FromArgs;
 use bril::{output_abstract_program_to_buffer, Program};
 use bril2json::parse_abstract_program;
 use bril_rs as bril;
-use brilift::{compile, jit_run};
+use brilift::{compile, jit_run, translator::Translator};
+use cranelift_jit::JITModule;
 use std::{str::FromStr, thread, time::Duration};
 
 #[derive(FromArgs)]
@@ -94,13 +95,14 @@ fn main() {
     let filepath = args.filepath.unwrap();
     let prog = get_prog(filepath.clone());
 
+    let mut trans = Translator::<JITModule>::new();
     if args.jit {
-        jit_run(&prog, args.args.clone(), args.dump_ir, false);
+        jit_run(&mut trans, &prog, args.args.clone(), args.dump_ir, false);
         for i in 1..1000 {
             println!("hotswap in 1 seconds, iteration {}", i);
             thread::sleep(Duration::from_millis(1000));
             let prog = get_prog(filepath.clone());
-            jit_run(&prog, args.args.clone(), args.dump_ir, true);
+            jit_run(&mut trans, &prog, args.args.clone(), args.dump_ir, true);
         }
     } else {
         compile(

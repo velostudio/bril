@@ -1029,7 +1029,7 @@ impl Translator<JITModule> {
         &mut self,
         func_id: cranelift_module::FuncId,
     ) -> *const u8 {
-        // self.module.clear_context(&mut self.context);
+        self.module.clear_context(&mut self.context);
 
         self.module.finalize_definitions().unwrap();
 
@@ -1066,11 +1066,13 @@ impl Translator<JITModule> {
 
     pub fn prepare_for_function_redefine(&mut self, prog: &bril::Program) {
         for func in &prog.functions {
-            if let Some(funcId) = self.funcs.get(&func.name) {
-                self.module.prepare_for_function_redefine(funcId.clone());
+            if let Some(func_id) = self.funcs.get(&func.name) {
+                match self.module.prepare_for_function_redefine(func_id.clone()) {
+                    Ok(_) => {},
+                    Err(e) => println!("prepare for function redefine error: {}", e),
+                };
             }
         }
-        self.module.finalize_definitions().unwrap();
     }
     
     pub fn finalize_definitions(&mut self) {

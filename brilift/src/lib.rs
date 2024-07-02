@@ -41,9 +41,8 @@ pub fn compile(
 /// * `program` - the Bril program to compile
 /// * `args` - the arguments to pass to the `@main` function
 /// * `dump_ir` - optionally emit the Cranelift IR to stdout
-pub fn jit_run(program: &Program, args: Vec<String>, dump_ir: bool, swap: bool) {
+pub fn jit_run(trans: &mut Translator<JITModule>, program: &Program, args: Vec<String>, dump_ir: bool, swap: bool) {
     // Compile.
-    let mut trans = Translator::<JITModule>::new();
 
     if swap {
         trans.prepare_for_function_redefine(program);
@@ -54,7 +53,7 @@ pub fn jit_run(program: &Program, args: Vec<String>, dump_ir: bool, swap: bool) 
         // thread and have endlessly running main function on main thread that uses hotswapped function
         //
         // Invoke the main function.
-        let Some(main) = find_func(&program.functions, "main") else {
+        let Some(_main) = find_func(&program.functions, "main") else {
             return;
         };
         unsafe { trans.run_func_by_name("main".to_string()) };
