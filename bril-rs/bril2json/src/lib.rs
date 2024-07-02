@@ -128,7 +128,8 @@ pub fn parse_abstract_program_from_read<R: std::io::Read>(
 
     parser
         .parse(&Lines::new(&buffer, use_pos, with_end, src_name), &buffer)
-        .unwrap()
+        // FIXME: this is quick hack to return empty program in case of parsing error
+        .unwrap_or_default()
 }
 
 #[must_use]

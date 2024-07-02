@@ -63,3 +63,13 @@ pub fn output_abstract_program(p: &AbstractProgram) {
     serde_json::to_writer_pretty(io::stdout(), p).unwrap();
     io::stdout().write_all(b"\n").unwrap();
 }
+
+pub fn output_abstract_program_to_buffer(p: &AbstractProgram) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    serde_json::to_writer_pretty(&mut buffer, p).unwrap();
+    buffer
+}
+
+pub fn load_program_from_buffer(buffer: &[u8]) -> Program {
+    serde_json::from_slice(buffer).unwrap()
+}

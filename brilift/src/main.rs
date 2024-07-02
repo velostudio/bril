@@ -1,13 +1,18 @@
 use argh::FromArgs;
+use bril::{output_abstract_program_to_buffer, Program};
+use bril2json::parse_abstract_program;
 use bril_rs as bril;
 use brilift::{compile, jit_run};
-use std::str::FromStr;
+use std::{str::FromStr, thread, time::Duration};
 
 #[derive(FromArgs)]
 #[argh(description = "Bril compiler")]
 struct BriliftArgs {
-    #[argh(switch, short = 'j', description = "JIT and run (doesn't work)")]
+    #[argh(switch, short = 'j', description = "JIT and run")]
     jit: bool,
+
+    #[argh(option, short = 'f', description = "filepath to bril program")]
+    filepath: Option<String>,
 
     #[argh(option, short = 't', description = "target triple")]
     target: Option<String>,
@@ -85,11 +90,18 @@ fn main() {
     )
     .unwrap();
 
-    // Load the Bril program from stdin.
-    let prog = bril::load_program();
+    // Load the Bril program from file.
+    let filepath = args.filepath.unwrap();
+    let prog = get_prog(filepath.clone());
 
     if args.jit {
-        jit_run(&prog, args.args, args.dump_ir);
+        jit_run(&prog, args.args.clone(), args.dump_ir, false);
+        for i in 1..1000 {
+            println!("hotswap in 1 seconds, iteration {}", i);
+            thread::sleep(Duration::from_millis(1000));
+            let prog = get_prog(filepath.clone());
+            jit_run(&prog, args.args.clone(), args.dump_ir, true);
+        }
     } else {
         compile(
             &prog,
@@ -99,4 +111,10 @@ fn main() {
             args.dump_ir,
         );
     }
+}
+
+fn get_prog(filepath: String) -> Program {
+    let program = parse_abstract_program(false, false, Some(filepath));
+    let buffer = output_abstract_program_to_buffer(&program);
+    bril::load_program_from_buffer(&buffer)
 }

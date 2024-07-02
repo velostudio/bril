@@ -16,7 +16,7 @@ use serde::de::{self, Error, MapAccess, Visitor};
 use serde::ser::{SerializeMap, Serializer};
 
 /// Equivalent to a file of bril code
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct AbstractProgram {
     /// A list of functions declared in the program
     pub functions: Vec<AbstractFunction>,

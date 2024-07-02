@@ -26,7 +26,10 @@ pub fn compile(
     trans.compile_prog(program, dump_ir);
 
     // Add a C-style `main` wrapper.
-    let main = find_func(&program.functions, "main");
+    let Some(main) = find_func(&program.functions, "main") else {
+        return;
+    };
+
     trans.add_c_main(&main.args, dump_ir);
 
     // Write object file.
@@ -38,38 +41,55 @@ pub fn compile(
 /// * `program` - the Bril program to compile
 /// * `args` - the arguments to pass to the `@main` function
 /// * `dump_ir` - optionally emit the Cranelift IR to stdout
-pub fn jit_run(program: &Program, args: Vec<String>, dump_ir: bool) {
+pub fn jit_run(program: &Program, args: Vec<String>, dump_ir: bool, swap: bool) {
     // Compile.
     let mut trans = Translator::<JITModule>::new();
-    trans.compile_prog(program, dump_ir);
 
-    // Add a JIT wrapper for `main`.
-    let main = find_func(&program.functions, "main");
-    let entry_id = trans.add_mem_wrapper("main", &main.args, dump_ir);
+    if swap {
+        trans.prepare_for_function_redefine(program);
+        trans.compile_prog(program, dump_ir);
+        trans.finalize_definitions();
 
-    // Parse CLI arguments.
-    if main.args.len() != args.len() {
-        panic!(
-            "@main expects {} arguments; got {}",
-            main.args.len(),
-            args.len()
-        );
+        // FIXME: Ideally, to test that jit works as expected would be cool to do hot swapping in dedicated
+        // thread and have endlessly running main function on main thread that uses hotswapped function
+        //
+        // Invoke the main function.
+        let Some(main) = find_func(&program.functions, "main") else {
+            return;
+        };
+        unsafe { trans.run_func_by_name("main".to_string()) };
+    } else {
+        trans.compile_prog(program, dump_ir);
+        // Add a JIT wrapper for `main`.
+        let Some(main) = find_func(&program.functions, "main") else {
+            return;
+        };
+        let entry_id = trans.add_mem_wrapper("main", &main.args, dump_ir);
+
+        // Parse CLI arguments.
+        if main.args.len() != args.len() {
+            panic!(
+                "@main expects {} arguments; got {}",
+                main.args.len(),
+                args.len()
+            );
+        }
+        let main_args: Vec<bril::Literal> = main
+            .args
+            .iter()
+            .zip(args)
+            .map(|(arg, val_str)| match arg.arg_type {
+                bril::Type::Int => bril::Literal::Int(val_str.parse().unwrap()),
+                bril::Type::Bool => bril::Literal::Bool(val_str == "true"),
+                bril::Type::Float => bril::Literal::Float(val_str.parse().unwrap()),
+                bril::Type::Char => bril::Literal::Char(val_str.parse().unwrap()),
+                bril::Type::Pointer(_) => unimplemented!("pointers not supported as main args"),
+            })
+            .collect();
+
+        // Invoke the main function.
+        unsafe { trans.run(entry_id, &main_args) };
     }
-    let main_args: Vec<bril::Literal> = main
-        .args
-        .iter()
-        .zip(args)
-        .map(|(arg, val_str)| match arg.arg_type {
-            bril::Type::Int => bril::Literal::Int(val_str.parse().unwrap()),
-            bril::Type::Bool => bril::Literal::Bool(val_str == "true"),
-            bril::Type::Float => bril::Literal::Float(val_str.parse().unwrap()),
-            bril::Type::Char => bril::Literal::Char(val_str.parse().unwrap()),
-            bril::Type::Pointer(_) => unimplemented!("pointers not supported as main args"),
-        })
-        .collect();
-
-    // Invoke the main function.
-    unsafe { trans.run(entry_id, &main_args) };
 }
 
 /// The C runtime library for Rust library users.

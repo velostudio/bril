@@ -1,0 +1,14 @@
+@main {
+    x: int = const 1;
+    y: int = const 1;
+    z: int = call @add2 x y;
+    print y;
+    print z;
+}
+
+@add2(x: int, z: int): int {
+    y: int = const 41;
+    w: int = add x y;
+    print w;
+    ret w;
+}

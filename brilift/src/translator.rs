@@ -1003,6 +1003,8 @@ impl Translator<JITModule> {
         // Set up the JIT.
         let mut builder = Self::jit_builder();
 
+        builder.hotswap(true);
+
         // Provide runtime functions.
         enum_map! {
             rtfunc => {
@@ -1023,8 +1025,12 @@ impl Translator<JITModule> {
 
     /// Obtain an entry-point code pointer. The pointer remains valid as long as the translator
     /// itself (and therefore the `JITModule`) lives.
-    fn get_func_ptr(&mut self, func_id: cranelift_module::FuncId) -> *const u8 {
-        self.module.clear_context(&mut self.context);
+    fn get_func_ptr(
+        &mut self,
+        func_id: cranelift_module::FuncId,
+    ) -> *const u8 {
+        // self.module.clear_context(&mut self.context);
+
         self.module.finalize_definitions().unwrap();
 
         self.module.get_finalized_function(func_id)
@@ -1049,6 +1055,27 @@ impl Translator<JITModule> {
         let func = mem::transmute::<*const u8, fn(*const *const u8) -> ()>(func_ptr);
         func(arg_ptrs.as_ptr());
     }
+    
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn run_func_by_name(&mut self, func_name: String) {
+        let func_id = self.funcs.get(&func_name).unwrap();
+        let func_ptr = self.module.get_finalized_function(*func_id);
+        let func = mem::transmute::<*const u8, fn() -> ()>(func_ptr);
+        func();
+    }
+
+    pub fn prepare_for_function_redefine(&mut self, prog: &bril::Program) {
+        for func in &prog.functions {
+            if let Some(funcId) = self.funcs.get(&func.name) {
+                self.module.prepare_for_function_redefine(funcId.clone());
+            }
+        }
+        self.module.finalize_definitions().unwrap();
+    }
+    
+    pub fn finalize_definitions(&mut self) {
+        self.module.finalize_definitions().unwrap();
+    }
 }
 
 impl Default for Translator<JITModule> {
@@ -1057,6 +1084,6 @@ impl Default for Translator<JITModule> {
     }
 }
 
-pub fn find_func<'a>(funcs: &'a [bril::Function], name: &str) -> &'a bril::Function {
-    funcs.iter().find(|f| f.name == name).unwrap()
+pub fn find_func<'a>(funcs: &'a [bril::Function], name: &str) -> Option<&'a bril::Function> {
+    funcs.iter().find(|f| f.name == name)
 }
